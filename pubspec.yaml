@@ -22,9 +22,10 @@ dependencies:
   package_info_plus: ^10.1.0
   wakelock_plus: ^1.2.8
 
-# ❌ لا تضع win32 هنا — سيتم حله تلقائياً
+# 🔸- فرض win32 6 لحل التعارض بين device_info_plus و package_info_plus
 dependency_overrides:
   shared_preferences_android: '>=2.4.28 <2.5.0'
+  win32: ^6.0.0
 
 flutter:
   uses-material-design: true
