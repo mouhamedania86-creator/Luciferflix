@@ -18,14 +18,16 @@ dependencies:
   media_kit_libs_video: ^1.0.4
   flutter_local_notifications: ^17.2.2
   timezone: ^0.9.4
-  device_info_plus: ^11.0.0
-  package_info_plus: ^10.1.0
+  # 🔸- نسخة متوافقة مع win32 5 (لا تحتاج override)
+  device_info_plus: ^10.1.0
+  # 🔸- نسخة متوافقة مع win32 5
+  package_info_plus: ^8.0.2
+  # 🔸- نسخة متوافقة مع win32 5
   wakelock_plus: ^1.2.8
 
-# 🔸- فرض win32 6 لحل التعارض بين device_info_plus و package_info_plus
+# 🔸- لا يوجد win32 في dependency_overrides — الحل النهائي
 dependency_overrides:
   shared_preferences_android: '>=2.4.28 <2.5.0'
-  win32: ^6.0.0
 
 flutter:
   uses-material-design: true
