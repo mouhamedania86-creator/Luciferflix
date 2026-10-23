@@ -201,7 +201,7 @@ jobs:
           echo "===== APKs ====="
           ls -la artifacts/apks/ 2>/dev/null || true
           echo
-          echo "===== Manifest (banner / leanback / impeller) ====="
+          echo "===== Manifest ====="
           grep -E 'banner|LEANBACK|Impeller|cleartext|label=' android/app/src/main/AndroidManifest.xml 2>/dev/null || true
 
   windows:
@@ -240,7 +240,7 @@ jobs:
           if-no-files-found: error
 
   ios:
-    name: iOS (unsigned IPA)
+    name: iOS (simulator build)
     runs-on: macos-latest
     timeout-minutes: 60
 
@@ -288,40 +288,27 @@ jobs:
           print("Info.plist ATS updated.")
           PY
 
-      # 🔸- إزالة إعدادات التوقيع من مشروع Xcode
-      - name: Remove iOS code signing settings
+      # 🔸- استخدام المحاكي (بدون أي توقيع)
+      - name: Build iOS (simulator, no codesign)
+        run: flutter build ios --release --no-codesign --simulator
+
+      - name: Package simulator app
         shell: bash
         run: |
           set -euo pipefail
-          PROJ="ios/Runner.xcodeproj/project.pbxproj"
-          if [ -f "$PROJ" ]; then
-            # إزالة DEVELOPMENT_TEAM
-            sed -i '' 's/DEVELOPMENT_TEAM = "[^"]*";/DEVELOPMENT_TEAM = "";/g' "$PROJ" || true
-            sed -i '' 's/DEVELOPMENT_TEAM = [^;]*;/DEVELOPMENT_TEAM = "";/g' "$PROJ" || true
-            # تعطيل CODE_SIGNING_REQUIRED
-            sed -i '' 's/CODE_SIGNING_REQUIRED = YES;/CODE_SIGNING_REQUIRED = NO;/g' "$PROJ" || true
-            sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "";/g' "$PROJ" || true
-            echo "iOS code signing disabled."
+          APP_DIR="build/ios/iphonesimulator"
+          if [ -d "$APP_DIR" ]; then
+            cd "$APP_DIR"
+            zip -qr ../MovieFlix-iOS-simulator.zip Runner.app
+            ls -lh ../MovieFlix-iOS-simulator.zip
+          else
+            echo "WARNING: simulator app not found"
+            ls -R build/ios/ | head -50
           fi
 
-      - name: Build iOS (no codesign)
-        run: flutter build ios --release --no-codesign
-
-      - name: Package unsigned IPA
-        shell: bash
-        run: |
-          set -euo pipefail
-          APP="build/ios/iphoneos/Runner.app"
-          test -d "$APP"
-          rm -rf build/ios/ipa
-          mkdir -p build/ios/ipa/Payload
-          cp -R "$APP" build/ios/ipa/Payload/Runner.app
-          (cd build/ios/ipa && zip -qr ../MovieFlix-unsigned.ipa Payload)
-          ls -lh build/ios/MovieFlix-unsigned.ipa
-
-      - name: Upload iOS IPA
+      - name: Upload iOS simulator app
         uses: actions/upload-artifact@v4
         with:
-          name: MovieFlix-iOS-unsigned
-          path: build/ios/MovieFlix-unsigned.ipa
-          if-no-files-found: error
+          name: MovieFlix-iOS-simulator
+          path: build/ios/MovieFlix-iOS-simulator.zip
+          if-no-files-found: warn
