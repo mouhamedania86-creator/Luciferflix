@@ -22,15 +22,15 @@ dependencies:
   package_info_plus: ^10.1.0
   wakelock_plus: ^1.2.8
 
+# ❌ لا تضع win32 هنا — سيتم حله تلقائياً
 dependency_overrides:
   shared_preferences_android: '>=2.4.28 <2.5.0'
-  win32: ^5.5.0
-
-dev_dependencies:
-  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
+
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.4
 
 flutter_launcher_icons:
   android: true
