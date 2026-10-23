@@ -42,7 +42,7 @@ jobs:
               .
           fi
           test -f android/app/src/main/AndroidManifest.xml
-          echo "Android ready (applicationId com.farescode.movieflix)."
+          echo "Android ready."
 
       - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v4
@@ -59,9 +59,8 @@ jobs:
           mkdir -p android/app/src/main/res/drawable-nodpi
           if [ -f assets/tv_banner.png ]; then
             cp assets/tv_banner.png android/app/src/main/res/drawable-nodpi/tv_banner.png
-            echo "✅ TV banner installed."
           else
-            echo "⚠️ assets/tv_banner.png missing — using ic_launcher as fallback"
+            echo "WARNING: assets/tv_banner.png missing — using launcher icon as banner fallback"
           fi
 
       - name: Fix Android manifest
@@ -111,10 +110,6 @@ jobs:
           <meta-data android:name="flutter.impeller.disabled" android:value="true"/>'''
               if '</activity>' in s:
                   s = s.replace('</activity>', meta + '\n        </activity>', 1)
-              else:
-                  end = s.find('>', s.find('<application'))
-                  if end >= 0:
-                      s = s[: end + 1] + '\n' + meta + s[end + 1 :]
 
           s = s.replace('android:label="movieflix"', 'android:label="MovieFlix"')
           p.write_text(s, encoding="utf-8")
@@ -166,8 +161,7 @@ jobs:
           print(f"Patched {patched} plugin file(s).")
           PY
 
-      # ——— 1) هاتف: split-per-abi ———
-      - name: Build phone APKs (split per ABI)
+      - name: Build phone APKs
         run: flutter build apk --release --no-shrink --split-per-abi
 
       - name: Save phone APKs
@@ -175,16 +169,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/apks
-          cp -v build/app/outputs/flutter-apk/*.apk artifacts/apks/
+          cp -v build/app/outputs/flutter-apk/*.apk artifacts/apks/ 2>/dev/null || true
           ls -la artifacts/apks/
 
-      # ——— 2) تلفاز: universal arm/arm64 + IS_TV=true + Impeller off ———
-      - name: Build Android TV APK (universal)
+      - name: Build Android TV APK
         run: |
           flutter build apk --release --no-shrink \
-            --target-platform android-arm,android-arm64 \
-            --dart-define=IS_TV=true \
-            --dart-define=FLUTTER_IMPELLER=0
+            --target-platform android-arm,android-arm64
 
       - name: Rename TV APK
         shell: bash
@@ -296,6 +287,22 @@ jobs:
           p.write_bytes(plistlib.dumps(data))
           print("Info.plist ATS updated.")
           PY
+
+      # 🔸- إزالة إعدادات التوقيع من مشروع Xcode
+      - name: Remove iOS code signing settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJ="ios/Runner.xcodeproj/project.pbxproj"
+          if [ -f "$PROJ" ]; then
+            # إزالة DEVELOPMENT_TEAM
+            sed -i '' 's/DEVELOPMENT_TEAM = "[^"]*";/DEVELOPMENT_TEAM = "";/g' "$PROJ" || true
+            sed -i '' 's/DEVELOPMENT_TEAM = [^;]*;/DEVELOPMENT_TEAM = "";/g' "$PROJ" || true
+            # تعطيل CODE_SIGNING_REQUIRED
+            sed -i '' 's/CODE_SIGNING_REQUIRED = YES;/CODE_SIGNING_REQUIRED = NO;/g' "$PROJ" || true
+            sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "";/g' "$PROJ" || true
+            echo "iOS code signing disabled."
+          fi
 
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
