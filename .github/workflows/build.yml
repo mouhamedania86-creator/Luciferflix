@@ -92,7 +92,6 @@ jobs:
           if 'android:hardwareAccelerated=' not in s:
               s = s.replace('<application', '<application android:hardwareAccelerated="true"', 1)
 
-          # 👈 ذاكرة أكبر للتصفح (مهم لفيديو 4K / HEVC)
           if 'android:largeHeap=' not in s:
               s = s.replace('<application', '<application android:largeHeap="true"', 1)
 
@@ -242,7 +241,8 @@ jobs:
           name: MovieFlix-Windows
           path: build/windows/x64/runner/Release/**
           if-no-files-found: error
-ios:
+
+  ios:
     name: iOS (unsigned IPA for ESign)
     runs-on: macos-latest
     timeout-minutes: 90
@@ -293,7 +293,6 @@ ios:
               "NSPhotoLibraryAddUsageDescription",
               "لحفظ صورة من المشغل",
           )
-          # اسم التطبيق على الشاشة
           data["CFBundleDisplayName"] = "MovieFlix"
           p.write_bytes(plistlib.dumps(data))
           print("Info.plist updated.")
@@ -308,17 +307,9 @@ ios:
 
           p = Path("ios/Runner.xcodeproj/project.pbxproj")
           s = p.read_text(encoding="utf-8")
-          # إلغاء التوقيع على CI
           s = re.sub(r"CODE_SIGN_STYLE = Automatic;", "CODE_SIGN_STYLE = Manual;", s)
           s = re.sub(r'DEVELOPMENT_TEAM = ".*?";', 'DEVELOPMENT_TEAM = "";', s)
           s = re.sub(r"DEVELOPMENT_TEAM = [A-Z0-9]+;", 'DEVELOPMENT_TEAM = "";', s)
-          if "CODE_SIGNING_ALLOWED" not in s:
-              s = s.replace(
-                  "buildSettings = {",
-                  'buildSettings = {\n\t\t\t\tCODE_SIGNING_ALLOWED = NO;\n\t\t\t\tCODE_SIGNING_REQUIRED = NO;',
-                  1,
-              )
-          # استبدال كل CODE_SIGNING_REQUIRED / ALLOWED
           s = re.sub(r"CODE_SIGNING_REQUIRED = YES;", "CODE_SIGNING_REQUIRED = NO;", s)
           s = re.sub(r"CODE_SIGNING_ALLOWED = YES;", "CODE_SIGNING_ALLOWED = NO;", s)
           p.write_text(s, encoding="utf-8")
@@ -342,7 +333,6 @@ ios:
             zip -qr ../MovieFlix-unsigned.ipa Payload
           )
           ls -lh build/ios/MovieFlix-unsigned.ipa
-          # تحقق سريع
           unzip -l build/ios/MovieFlix-unsigned.ipa | head -20
 
       - name: Upload IPA for ESign
