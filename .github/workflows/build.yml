@@ -242,3 +242,112 @@ jobs:
           name: MovieFlix-Windows
           path: build/windows/x64/runner/Release/**
           if-no-files-found: error
+ios:
+    name: iOS (unsigned IPA for ESign)
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate iOS project
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f ios/Runner.xcodeproj/project.pbxproj ]; then
+            flutter create \
+              --template app \
+              --platforms ios \
+              --org com.farescode \
+              --project-name movieflix \
+              .
+          fi
+          test -f ios/Runner.xcodeproj/project.pbxproj
+          echo "iOS project ready."
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Fix Info.plist (HTTP + media for IPTV)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import plistlib
+
+          p = Path("ios/Runner/Info.plist")
+          data = plistlib.loads(p.read_bytes())
+          data["NSAppTransportSecurity"] = {
+              "NSAllowsArbitraryLoads": True,
+              "NSAllowsArbitraryLoadsInMedia": True,
+              "NSAllowsArbitraryLoadsInWebContent": True,
+          }
+          data.setdefault(
+              "NSPhotoLibraryAddUsageDescription",
+              "لحفظ صورة من المشغل",
+          )
+          # اسم التطبيق على الشاشة
+          data["CFBundleDisplayName"] = "MovieFlix"
+          p.write_bytes(plistlib.dumps(data))
+          print("Info.plist updated.")
+          PY
+
+      - name: Disable code signing (for ESign)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path("ios/Runner.xcodeproj/project.pbxproj")
+          s = p.read_text(encoding="utf-8")
+          # إلغاء التوقيع على CI
+          s = re.sub(r"CODE_SIGN_STYLE = Automatic;", "CODE_SIGN_STYLE = Manual;", s)
+          s = re.sub(r'DEVELOPMENT_TEAM = ".*?";', 'DEVELOPMENT_TEAM = "";', s)
+          s = re.sub(r"DEVELOPMENT_TEAM = [A-Z0-9]+;", 'DEVELOPMENT_TEAM = "";', s)
+          if "CODE_SIGNING_ALLOWED" not in s:
+              s = s.replace(
+                  "buildSettings = {",
+                  'buildSettings = {\n\t\t\t\tCODE_SIGNING_ALLOWED = NO;\n\t\t\t\tCODE_SIGNING_REQUIRED = NO;',
+                  1,
+              )
+          # استبدال كل CODE_SIGNING_REQUIRED / ALLOWED
+          s = re.sub(r"CODE_SIGNING_REQUIRED = YES;", "CODE_SIGNING_REQUIRED = NO;", s)
+          s = re.sub(r"CODE_SIGNING_ALLOWED = YES;", "CODE_SIGNING_ALLOWED = NO;", s)
+          p.write_text(s, encoding="utf-8")
+          print("Signing disabled in pbxproj.")
+          PY
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="build/ios/iphoneos/Runner.app"
+          test -d "$APP"
+          rm -rf build/ios/ipa
+          mkdir -p build/ios/ipa/Payload
+          cp -R "$APP" build/ios/ipa/Payload/Runner.app
+          (
+            cd build/ios/ipa
+            zip -qr ../MovieFlix-unsigned.ipa Payload
+          )
+          ls -lh build/ios/MovieFlix-unsigned.ipa
+          # تحقق سريع
+          unzip -l build/ios/MovieFlix-unsigned.ipa | head -20
+
+      - name: Upload IPA for ESign
+        uses: actions/upload-artifact@v4
+        with:
+          name: MovieFlix-iOS-unsigned
+          path: build/ios/MovieFlix-unsigned.ipa
+          if-no-files-found: error
