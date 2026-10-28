@@ -31,6 +31,10 @@ class PlayerControls extends StatefulWidget {
   /// نقر مزدوج على الفيديو (تقديم/تأخير 10 ثواني).
   final void Function(TapDownDetails details)? onDoubleTapDown;
 
+  /// 🔸 تنداءو كي المستخدم يسحب/يتحرك في الفيديو — باش الشاشة الأم تعرف
+  /// الموضع الجديد وتحفظه (كي ما يبقاش الاستئناف في بلاصة غلط).
+  final void Function(Duration position)? onSeek;
+
   /// هل نعرض أدوات الكمبيوتر (الصوت، ملء الشاشة)؟
   final bool desktop;
 
@@ -42,6 +46,7 @@ class PlayerControls extends StatefulWidget {
     this.onBack,
     this.overlay,
     this.onDoubleTapDown,
+    this.onSeek,
     this.desktop = false,
   });
 
@@ -60,6 +65,9 @@ class _PlayerControlsState extends State<PlayerControls> {
   Duration _duration = Duration.zero;
   double _dragValue = -1; // -1 = ما كايناش سحب
   bool _dragging = false;
+  /// 🔸 كنوقفو تحديث الموضع من الـ stream وقت الـ seek — باش الشريط
+  /// ما يرجعش للموقع القديم (كان كيرجع ويقطّع الفيديو).
+  bool _seeking = false;
 
   @override
   void initState() {
@@ -72,7 +80,7 @@ class _PlayerControlsState extends State<PlayerControls> {
       if (mounted) setState(() => _buffering = v);
     }));
     _subs.add(p.stream.position.listen((v) {
-      if (mounted && !_dragging) setState(() => _position = v);
+      if (mounted && !_dragging && !_seeking) setState(() => _position = v);
     }));
     _subs.add(p.stream.duration.listen((v) {
       if (mounted) setState(() => _duration = v);
@@ -114,13 +122,65 @@ class _PlayerControlsState extends State<PlayerControls> {
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
+  /// 🔸 السحب: نسكيو **مرة وحدة**، نتأكدو من الوصول، وإذا ماوصلش نعاودو
+  /// (mpv أحياناً يطنّش الـ seek وقت البفر).
+  ///
+  /// ⚠️ المشكل اللي كان:
+  /// - `state.duration` ممكن يكون 0 → السحب كان **ما يعملش أصلاً**
+  ///   (الشريط يتحرّك والفيديو ما يتحرّكش).
+  /// - بعد `onChangeEnd` كنا نحبسو `_dragging` فنجمدو الشريط → كيرجع
+  ///   للموقع القديم ويقطّع الفيديو.
   Future<void> _seekTo(double value) async {
-    final durationMs = widget.player.state.duration.inMilliseconds;
+    // نستعملو نفس المدة ديال الـ Slider (من الـ stream) باش ما يبقاش
+    //_skوت_ بيناتهم، مع الـ state كـ fallback.
+    var durationMs = _duration.inMilliseconds;
+    if (durationMs <= 0) durationMs = widget.player.state.duration.inMilliseconds;
     if (durationMs <= 0) return;
-    // Slider values are already milliseconds (max == durationMs).
-    // Multiplying by duration again sends the playhead far beyond the end.
     final targetMs = value.round().clamp(0, durationMs);
-    await widget.player.seek(Duration(milliseconds: targetMs));
+    await _seekToPosition(Duration(milliseconds: targetMs));
+  }
+
+  /// سكتة واحدة + تأكيد + (إعادة محاولة وحدة إذا ماوصلش).
+  Future<void> _seekToPosition(Duration target) async {
+    if (!mounted) return;
+    setState(() {
+      _seeking = true;
+      _position = target; // الشريط يبقى في البلاصة الجديدة
+    });
+    widget.onSeek?.call(target);
+
+    var reached = false;
+    final wasPlaying = widget.player.state.playing;
+    for (var attempt = 0; attempt < 3 && !reached; attempt++) {
+      try {
+        // 🔸 pause → seek → play
+        // كان الفيديو كيمشي شويي من الموضع القديم قبل ما يطير للمكان
+        // الجديد (ki يطلع "يمشي ويتقطع"). بالإيقاف قبل السكتة، mpv
+        // يفكّ الترميز في الموضع الجديد مباشرةً → انتقال نظيف.
+        if (wasPlaying) await widget.player.pause();
+        await widget.player.seek(target);
+        if (wasPlaying) await widget.player.play();
+      } catch (_) {}
+      final until = DateTime.now().add(const Duration(milliseconds: 1400));
+      while (DateTime.now().isBefore(until)) {
+        await Future.delayed(const Duration(milliseconds: 150));
+        final cur = widget.player.state.position;
+        if ((cur - target).inMilliseconds.abs() <= 3000) {
+          reached = true;
+          break;
+        }
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _seeking = false;
+      _dragging = false;
+      _dragValue = -1;
+      // إذا ماوصلناش، نوريو الحقيقة (ما نكذبوش على المستخدم).
+      if (!reached) _position = widget.player.state.position;
+    });
+    _restartHideTimer();
   }
 
   @override
@@ -254,12 +314,10 @@ class _PlayerControlsState extends State<PlayerControls> {
                                 onChanged: (v) =>
                                     setState(() => _dragValue = v),
                                 onChangeEnd: (v) {
+                                  // 🔸 ما نحبسوش _dragging هنا — نخلّيو
+                                  // _seekToPosition يتكفّل بالConfirm
+                                  // (هكذا الشريط ما يرجعش للموقع القديم).
                                   _seekTo(v);
-                                  setState(() {
-                                    _dragging = false;
-                                    _dragValue = -1;
-                                  });
-                                  _restartHideTimer();
                                 },
                               ),
                             ),
@@ -283,9 +341,8 @@ class _PlayerControlsState extends State<PlayerControls> {
                             onPressed: () {
                               final p = widget.player.state.position -
                                   const Duration(seconds: 10);
-                              widget.player.seek(
+                              _seekToPosition(
                                   p < Duration.zero ? Duration.zero : p);
-                              _restartHideTimer();
                             },
                           ),
                           const SizedBox(width: 6),
@@ -308,11 +365,10 @@ class _PlayerControlsState extends State<PlayerControls> {
                             icon: const Icon(Icons.forward_30,
                                 color: Colors.white, size: 26),
                             onPressed: () {
-                              widget.player.seek(
+                              _seekToPosition(
                                 widget.player.state.position +
                                     const Duration(seconds: 30),
                               );
-                              _restartHideTimer();
                             },
                           ),
                           if (widget.desktop) ...[
