@@ -253,12 +253,19 @@ class Store {
   }
 
   static Future<void> saveWatch(WatchEntry e) async {
-    final list = await history();
-    list.removeWhere((x) => x.key == e.key);
-    list.insert(0, e);
-    await _writeList('history', list.take(80).map((x) => x.toJson()).toList());
-    historyVersion.value++;
+    // Multiple periodic/lifecycle saves can overlap. Serialize them so a
+    // slower old write cannot overwrite a newer playback position.
+    _pendingWatchSaves = _pendingWatchSaves.then((_) async {
+      final list = await history();
+      list.removeWhere((x) => x.key == e.key);
+      list.insert(0, e);
+      await _writeList('history', list.take(80).map((x) => x.toJson()).toList());
+      historyVersion.value++;
+    });
+    await _pendingWatchSaves;
   }
+
+  static Future<void> _pendingWatchSaves = Future<void>.value();
 
   /// آخر مشاهدة لكل فيلم/مسلسل.
   static List<WatchEntry> _latestPerItem(List<WatchEntry> all) {
