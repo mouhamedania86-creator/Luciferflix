@@ -62,6 +62,15 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
   bool _triedFallback = false;
   bool _completed = false;
   bool _resumePending = false;
+  /// 🔸 المستخدم سحب بوحدو → نوقفو أي سكتة تلقائية (ما نرجعوشه للمكان القديم)
+  bool _userSeeked = false;
+  /// 🔸 السكتة الجارية (الهدف) — كي يبقى الـ stream تاع الموضع يبعت
+  /// الموضع القديم، ما نخدموش بيه (ماشي باش نحفظو بلاصة غلط).
+  Duration? _pendingSeek;
+  DateTime? _pendingSeekAt;
+  /// 🔸 النقطة اللي حاولنا نرجعو لها — باش ما نمسحوش التقدّم كي
+  /// الاستئناف يفشل (المدة مجهولة مثلاً) ونبداو من الصفر.
+  int _resumeFrom = 0;
   bool _advancing = false;
   int _pos = 0;
   final ValueNotifier<int> _posNotifier = ValueNotifier<int>(0);
@@ -149,9 +158,21 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
     _subs.clear();
     _subs.add(_player.stream.position.listen((p) {
       if (!mounted) return;
-      final seconds = p.inSeconds < 0 ? 0 : p.inSeconds;
-      _pos = _dur > 0 ? seconds.clamp(0, _dur).toInt() : seconds;
-      _posNotifier.value = _pos;
+      // 🔸 أثناء السكتة، الـ stream كيبعث الموضع **القديم** لحد ما
+      //    mpv يطبّق السكتة. كان `_pos` يتبدّل ونحفظو موضع غلط
+      //    (خصوصاً كي نرجعو للور). هنا: نتجاهلو القديم، ونقبلو الجديد
+      //    كي يوصل قريب من الهدف.
+      final target = _pendingSeek;
+      if (target != null) {
+        if ((p - target).inSeconds.abs() <= 3) {
+          _pendingSeek = null; // وصلنا ✅
+          _pendingSeekAt = null;
+        } else {
+          _expirePendingSeek();
+          return; // مازال الموضع القديم → ما نكتبوش
+        }
+      }
+      _setPos(p.inSeconds < 0 ? 0 : p.inSeconds);
     }));
     _subs.add(_player.stream.duration.listen((d) {
       if (!mounted) return;
@@ -220,9 +241,16 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
     final old = _player;
     _softwareMode = software;
     _videoSeen = false;
+
+    // 🚨 كان هنا الخطأ الكبير: كنا نعملو _createVideoController() و
+    // _subscribe() على الـ Player القديم، بعدين نحبسوه (dispose) —
+    // وبعدين _open() على Player متخلّص! = الفيديو ما يخدمش + الموضع
+    // يرجع لصفر. دلوقتي: Player جديد أول حاجة.
+    _player = _newPlayer();
     _createVideoController();
     _subscribe();
     if (mounted) setState(() {});
+
     try {
       await old.stop();
     } catch (_) {}
@@ -232,6 +260,45 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
     await _open(url, start: start);
+  }
+
+  /// 🔸 نعلّمو أن كاين سكتة جارية (كي نستناو الموضع الجديد).
+  void _markSeek(Duration target) {
+    _pendingSeek = target;
+    _pendingSeekAt = DateTime.now();
+  }
+
+  /// 🔸 إذا السكتة ما خدمتش (mpv طنّشها) → نفكّو القفل بعد 8 ثواني
+  /// باش الحفظ يرجع يخدم.
+  void _expirePendingSeek() {
+    final at = _pendingSeekAt;
+    if (at == null) return;
+    if (DateTime.now().difference(at) > const Duration(seconds: 8)) {
+      _pendingSeek = null;
+      _pendingSeekAt = null;
+    }
+  }
+
+  /// 🔸 تحديث الموضع في الشاشة الأم (مشترك مع الحفظ والاستئناف).
+  void _setPos(int seconds) {
+    final v = _dur > 0 ? seconds.clamp(0, _dur).toInt() : seconds;
+    _pos = v;
+    _posNotifier.value = v;
+  }
+
+  /// 🔸 سكتة من الشاشة الأم (النقر المزدوج) — نفس منطق الحركات.
+  Future<void> _seekTo(Duration target) async {
+    if (_userSeeked == false) _userSeeked = true;
+    _resumePending = false;
+    _markSeek(target);
+    final wasPlaying = _player.state.playing;
+    try {
+      // 🔸 pause → seek → play (انتقال نظيف بلا "يمشي شويي ويتقطع")
+      if (wasPlaying) await _player.pause();
+      await _player.seek(target);
+      if (wasPlaying) await _player.play();
+    } catch (_) {}
+    _setPos(target.inSeconds);
   }
 
   // ---------------- تخطي المقدمة / النهاية ----------------
@@ -464,9 +531,17 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
     if (!mounted || gen != _gen) return;
 
     _resumePending = start != null;
+    _userSeeked = false; // جولة جديدة → السكتة التلقائية مسموحة
+    _pendingSeek = null;
+    _pendingSeekAt = null;
+    _resumeFrom = start?.inSeconds ?? 0;
     try {
-      await _player.open(Media(url, start: start), play: true);
-      if (start != null) await _seekWhenReady(start, gen);
+      // 🔸 كان nestnaa na3mlou play:true → الفيديو كيبدا من الصفر وكيبان
+      // للملا ثم يرجع لنقطة الاستمرار. دلوقتي: نفتحو موقوف، نرجعو
+      // للنقطة، وبعدين نبداو الplay → المستخدم كي shrunk يفيق على الصورة
+      // في بلاصتها الصحيحة.
+      await _player.open(Media(url, start: start), play: start == null);
+      if (start != null) await _resumeSeek(start, gen);
       if (mounted && gen == _gen) {
         setState(() => _fatalError = null);
       }
@@ -490,21 +565,78 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
     }
   }
 
-  Future<void> _seekWhenReady(Duration target, int gen) async {
+  /// 🔸 الاستئناف (رجوع لآخر نقطة مشاهدة).
+  ///
+  /// ⚠️ الأخطاء اللي كانت:
+  /// 1) `Media(start:)` **ما كيتطبّقش على أندرويد** في media_kit (غير على
+  ///    الويب) → لازم نسكيو بأنفسنا.
+  /// 2) `stream.duration.firstWhere(...)` ممكن **يعلق 25 ثانية** (الستريم
+  ///    broadcast: كي تكون القيمة已經 اتاعت قبل ما نشتركو، ما كيبعثش
+  ///    حدث جديد → `firstWhere` ما يرجعش أبداً) → ما كاينش سكتة → الفيديو
+  ///    يبدا من الصفر.
+  /// 3) كان يسكيو **3 مرات** متتالية (كل سكتة = re-buffer) → الفيديو
+  ///    «يمشي شويي ويتقطع» ✂️
+  ///
+  /// دلوقتي: نستنّى المدة (poll)، نسكيو **مرة وحدة**، نتأكدو، وإذا
+  /// ماوصلش نعاودو **مرة وحدة** فقط.
+  Future<void> _resumeSeek(Duration target, int gen) async {
     try {
-      if (_player.state.duration <= Duration.zero) {
-        await _player.stream.duration
-            .firstWhere((d) => d > Duration.zero)
-            .timeout(const Duration(seconds: 25));
+      // 1) نستنّى المدة — 3 ثواني برك (الساشة موقوفة، ما نحبّسوش
+      //    المستخدم قدّام شاشة سوداء وقت طويل).
+      final until = DateTime.now().add(const Duration(seconds: 3));
+      while (mounted && gen == _gen && DateTime.now().isBefore(until)) {
+        if (_player.state.duration > Duration.zero) break;
+        await Future.delayed(const Duration(milliseconds: 150));
       }
-      for (var i = 0; i < 3; i++) {
-        if (!mounted || gen != _gen) return;
-        final cur = _player.state.position;
-        if ((target - cur).inSeconds.abs() <= 5) return;
+      if (!mounted || gen != _gen) return;
+
+      // 2) 🔸 سكتة **حتى بلا duration معروف**
+      //    كان الكود القديم يخرج إذا ما ظهرتش المدة → الفيديو يبدا من
+      //    الصفر. دلوقتي نحاولو على أي حال: mpv كيعرف يسكيو بالوقت
+      //    (time-pos) حتى بلا مدة معروفة، ki السيرفر يتبع range
+      //    requests (أغلب سيرفرات Xtream كيفعلو ✅).
+      _markSeek(target);
+      try {
         await _player.seek(target);
-        await Future.delayed(const Duration(milliseconds: 1200));
+      } catch (_) {}
+
+      // 3) 🔸 نبداو الplay دغيا — ما نحبّسوش المستخدم قدّام شاشة موقوفة
+      try {
+        await _player.play();
+      } catch (_) {}
+
+      // 4) تأكيد (mpv يطنّش أحياناً الـ seek وقت البفر)
+      final confirm = DateTime.now().add(const Duration(seconds: 4));
+      while (mounted && gen == _gen && DateTime.now().isBefore(confirm)) {
+        if ((_player.state.position - target).inSeconds.abs() <= 5) {
+          _setPos(target.inSeconds);
+          return;
+        }
+        if (_userSeeked) return; // المستخدم سحب بوحدو → نوقفو
+        await Future.delayed(const Duration(milliseconds: 250));
       }
-    } catch (_) {}
+
+      // 5) ماوصلش → محاولة ثانية وحدة
+      if (!mounted || gen != _gen || _userSeeked) return;
+      try {
+        await _player.seek(target);
+      } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 900));
+      if (!mounted || gen != _gen) return;
+      _setPos(_player.state.position.inSeconds);
+
+      // 6) ماوصلناش → نوريو المستخدم (ما يحسبش أنو تقدّمو ضاع)
+      if ((_player.state.position - target).inSeconds.abs() > 10) {
+        _toast('ما قدرناش نرجعوا لنقطة المشاهدة — الفيديو بدا من الأول');
+      }
+    } catch (_) {
+      // ما نحبسش الplay أبداً
+    } finally {
+      // 🔸 دايماً نبداو الplay (ما يبقاش الفيديو متوقف في الصمت)
+      try {
+        if (mounted && gen == _gen) await _player.play();
+      } catch (_) {}
+    }
   }
 
   Future<void> _goTo(int i) async {
@@ -550,9 +682,15 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
   void _save() {
     final w = _watch;
     if (widget.isLive || w == null || _resumePending) return;
+    _expirePendingSeek();
     // Read the player's live state rather than relying only on the last
     // position-stream event; this avoids saving a stale position on exit.
-    final livePosition = _player.state.position.inSeconds;
+    // 🔸 أثناء السكتة، `state.position` هو الموضع **القديم** (mpv ما
+    //    طبّقش السكتة بعد) → نستعملو `_pos` (الهدف اللي اختاره
+    //    المستخدم) باش ما نحفظوش بلاصة غلط — خاصة كي نرجعو للور.
+    final livePosition = _pendingSeek != null
+        ? _pos
+        : _player.state.position.inSeconds;
     final savedPos = livePosition > _pos ? livePosition : _pos;
     final liveDuration = _player.state.duration.inSeconds;
     final dur = _dur > 0 ? _dur : liveDuration;
@@ -560,6 +698,9 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
     final safePos = savedPos.clamp(0, dur).toInt();
     final done = _completed || (dur > 120 && safePos >= dur - 60);
     if (!done && safePos < 10) return;
+    // 🔸 ما نمسحوش نقطة أقدم من اللي وصلناها (كي يفشل الاستئناف و
+    // نبداو من الصفر، ما نحبسش التقدّم القديم).
+    if (!done && !_userSeeked && safePos < _resumeFrom) return;
     Store.saveWatch(w.copyWith(
       pos: done ? dur : safePos,
       dur: dur,
@@ -813,9 +954,10 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
     return {
       S.t('resolution'): (w != null && h != null) ? '${w}x$h' : '—',
       S.t('bitrate'): ab != null ? '${ab.toStringAsFixed(0)} kbps' : '—',
-      S.t('buffer'): buf != null ? _fmt(buf.inSeconds) : '—',
+      S.t('buffer'): buf > Duration.zero ? _fmt(buf.inSeconds) : '—',
       'Position': '${_fmt(_pos)} / ${_fmt(_dur)}',
       'Mode': _softwareMode ? 'Software' : 'Hardware',
+      'Video track': _videoSeen ? '✔ ظهر' : '✖ ما ظهرش',
     };
   }
 
@@ -1025,13 +1167,21 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
                   final w = MediaQuery.of(context).size.width;
                   final cur = _player.state.position;
                   if (details.globalPosition.dx > w / 2) {
-                    _player.seek(cur + const Duration(seconds: 10));
+                    _seekTo(cur + const Duration(seconds: 10));
                     _flashSeek('+10s');
                   } else {
                     final p = cur - const Duration(seconds: 10);
-                    _player.seek(p < Duration.zero ? Duration.zero : p);
+                    _seekTo(p < Duration.zero ? Duration.zero : p);
                     _flashSeek('-10s');
                   }
+                },
+                onSeek: (position) {
+                  // 🔸 المستخدم سحب → نوقفو السكتة التلقائية، ونعلّمو
+                  //    الشاشة الأم باش ما تحفظش الموضع القديم.
+                  _userSeeked = true;
+                  _resumePending = false;
+                  _markSeek(position);
+                  _setPos(position.inSeconds);
                 },
                 overlay: _overlays(),
               ),
