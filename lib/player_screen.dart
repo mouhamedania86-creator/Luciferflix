@@ -550,12 +550,18 @@ class _PlayerScreenState extends State<PlayerScreen> with WidgetsBindingObserver
   void _save() {
     final w = _watch;
     if (widget.isLive || w == null || _resumePending) return;
-    final dur = _dur > 0 ? _dur : _player.state.duration.inSeconds;
+    // Read the player's live state rather than relying only on the last
+    // position-stream event; this avoids saving a stale position on exit.
+    final livePosition = _player.state.position.inSeconds;
+    final savedPos = livePosition > _pos ? livePosition : _pos;
+    final liveDuration = _player.state.duration.inSeconds;
+    final dur = _dur > 0 ? _dur : liveDuration;
     if (dur <= 0) return;
-    final done = _completed || (dur > 120 && _pos >= dur - 60);
-    if (!done && _pos < 10) return;
+    final safePos = savedPos.clamp(0, dur).toInt();
+    final done = _completed || (dur > 120 && safePos >= dur - 60);
+    if (!done && safePos < 10) return;
     Store.saveWatch(w.copyWith(
-      pos: done ? dur : _pos,
+      pos: done ? dur : safePos,
       dur: dur,
       ts: DateTime.now().millisecondsSinceEpoch,
       done: done,
