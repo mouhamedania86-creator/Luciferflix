@@ -114,11 +114,13 @@ class _PlayerControlsState extends State<PlayerControls> {
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
-  void _seekTo(double value) {
-    final ms = widget.player.state.duration.inMilliseconds;
-    if (ms <= 0) return;
-    final target = (value * ms).round();
-    widget.player.seek(Duration(milliseconds: target));
+  Future<void> _seekTo(double value) async {
+    final durationMs = widget.player.state.duration.inMilliseconds;
+    if (durationMs <= 0) return;
+    // Slider values are already milliseconds (max == durationMs).
+    // Multiplying by duration again sends the playhead far beyond the end.
+    final targetMs = value.round().clamp(0, durationMs);
+    await widget.player.seek(Duration(milliseconds: targetMs));
   }
 
   @override
