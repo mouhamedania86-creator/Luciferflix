@@ -26,6 +26,12 @@ class S {
 
   static String t(String k) => _m[lang.value]?[k] ?? _m['en']![k] ?? k;
 
+  // ============================================================
+  //  👇 الاسم الجديد للمطورين (يستعمل في شاشة "عن التطبيق")
+  // ============================================================
+  static const String devName = 'FaresCodeX 🍫 & My tan 🍓';
+  static const String devSignature = 'Dev By FaresCodeX 🍫 & My tan 🍓';
+
   static const Map<String, Map<String, String>> _m = {
     'ar': {
       'home': "الرئيسية",
@@ -42,8 +48,9 @@ class S {
       'choose_language': "اختر اللغة",
       'about': "عن التطبيق",
       // 👈 تعريف التطبيق الجديد (بدون Xtream)
-      'about_text': "تطبيق MovieFlix هو منصتك الأولى لمشاهدة أحدث الأفلام والمسلسلات بجودة عالية. يتميز بواجهة سهلة الاستخدام، دعم متعدد اللغات، ومشغل فيديو مدمج مع إمكانية استكمال المشاهدة.\n\nDev By sxnaxke",
+      'about_text': "تطبيق MovieFlix هو منصتك الأولى لمشاهدة أحدث الأفلام والمسلسلات بجودة عالية. يتميز بواجهة سهلة الاستخدام، دعم متعدد اللغات، ومشغل فيديو مدمج مع إمكانية استكمال المشاهدة.\n\nDev By FaresCodeX 🍫 & My tan 🍓",
       'developer': "المطور",
+      'developer_name': "FaresCodeX 🍫 & My tan 🍓",
       'follow_dev': "تابعه على إنستغرام",
       'logout': "تسجيل الخروج",
       'clear_data': "مسح المفضلة والسجل والتذكيرات",
@@ -200,6 +207,13 @@ class S {
       'hours_minutes': "{h} س {m} د",
       'minutes_only': "{m} دقيقة",
       'episode_thumb': "صورة الحلقة",
+      // ======== إضافات لصفحة المسلسل الكاملة ========
+      'select_season': "اختر الموسم",
+      'loading_seasons': "جاري تحميل المواسم…",
+      'no_seasons': "لا توجد مواسم متاحة لهذا المسلسل",
+      'watch_now': "شاهد الآن",
+      'error': "حدث خطأ",
+      'try_again': "حاول مجدداً",
     },
     'fr': {
       'home': "Accueil",
@@ -216,8 +230,9 @@ class S {
       'choose_language': "Choisir la langue",
       'about': "À propos",
       // 👈 تعريف التطبيق بالفرنسية
-      'about_text': "MovieFlix est votre première plateforme pour regarder les derniers films et séries en haute qualité. Il dispose d'une interface facile à utiliser, du support multilingue et d'un lecteur vidéo intégré avec reprise de lecture.\n\nDev By sxnaxke",
+      'about_text': "MovieFlix est votre première plateforme pour regarder les derniers films et séries en haute qualité. Il dispose d'une interface facile à utiliser, du support multilingue et d'un lecteur vidéo intégré avec reprise de lecture.\n\nDev By FaresCodeX 🍫 & My tan 🍓",
       'developer': "Développeur",
+      'developer_name': "FaresCodeX 🍫 & My tan 🍓",
       'follow_dev': "Suivez-le sur Instagram",
       'logout': "Déconnexion",
       'clear_data': "Effacer favoris, historique et rappels",
@@ -374,6 +389,13 @@ class S {
       'hours_minutes': "{h} h {m} min",
       'minutes_only': "{m} min",
       'episode_thumb': "Vignette de l'épisode",
+      // ======== ajouts pour la page série complète ========
+      'select_season': "Choisir la saison",
+      'loading_seasons': "Chargement des saisons…",
+      'no_seasons': "Aucune saison disponible pour cette série",
+      'watch_now': "Regarder maintenant",
+      'error': "Une erreur est survenue",
+      'try_again': "Réessayer",
     },
     'en': {
       'home': "Home",
@@ -390,8 +412,9 @@ class S {
       'choose_language': "Choose language",
       'about': "About the app",
       // 👈 تعريف التطبيق بالإنجليزية
-      'about_text': "MovieFlix is your premier platform to watch the latest movies and series in high quality. It features an easy-to-use interface, multi-language support, and a built-in video player with resume playback.\n\nDev By sxnaxke",
+      'about_text': "MovieFlix is your premier platform to watch the latest movies and series in high quality. It features an easy-to-use interface, multi-language support, and a built-in video player with resume playback.\n\nDev By FaresCodeX 🍫 & My tan 🍓",
       'developer': "Developer",
+      'developer_name': "FaresCodeX 🍫 & My tan 🍓",
       'follow_dev': "Follow on Instagram",
       'logout': "Log out",
       'clear_data': "Clear favorites, history and reminders",
@@ -548,6 +571,13 @@ class S {
       'hours_minutes': "{h}h {m}m",
       'minutes_only': "{m} min",
       'episode_thumb': "Episode artwork",
+      // ======== full series page additions ========
+      'select_season': "Select season",
+      'loading_seasons': "Loading seasons…",
+      'no_seasons': "No seasons available for this series",
+      'watch_now': "Watch now",
+      'error': "An error occurred",
+      'try_again': "Try again",
     },
   };
 }
