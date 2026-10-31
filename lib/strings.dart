@@ -27,10 +27,10 @@ class S {
   static String t(String k) => _m[lang.value]?[k] ?? _m['en']![k] ?? k;
 
   // ============================================================
-  //  👇 الاسم الجديد للمطورين (يستعمل في شاشة "عن التطبيق")
+  //  👇 الاسم الجديد للمطور
   // ============================================================
-  static const String devName = 'FaresCodeX 🍫 & My tan 🍓';
-  static const String devSignature = 'Dev By FaresCodeX 🍫 & My tan 🍓';
+  static const String devName = 'FaresCodeX 🖋';
+  static const String devSignature = 'By FaresCodeX 🖋';
 
   static const Map<String, Map<String, String>> _m = {
     'ar': {
@@ -47,10 +47,10 @@ class S {
       'language': "لغة التطبيق",
       'choose_language': "اختر اللغة",
       'about': "عن التطبيق",
-      // 👈 تعريف التطبيق الجديد (بدون Xtream)
-      'about_text': "تطبيق MovieFlix هو منصتك الأولى لمشاهدة أحدث الأفلام والمسلسلات بجودة عالية. يتميز بواجهة سهلة الاستخدام، دعم متعدد اللغات، ومشغل فيديو مدمج مع إمكانية استكمال المشاهدة.\n\nDev By FaresCodeX 🍫 & My tan 🍓",
+      // 👈 تعريف التطبيق الجديد
+      'about_text': "تطبيق MovieFlix هو منصتك الأولى لمشاهدة أحدث الأفلام والمسلسلات بجودة عالية. يتميز بواجهة سهلة الاستخدام، دعم متعدد اللغات، ومشغل فيديو مدمج مع إمكانية استكمال المشاهدة.\n\nBy FaresCodeX 🖋",
       'developer': "المطور",
-      'developer_name': "FaresCodeX 🍫 & My tan 🍓",
+      'developer_name': "FaresCodeX 🖋",
       'follow_dev': "تابعه على إنستغرام",
       'logout': "تسجيل الخروج",
       'clear_data': "مسح المفضلة والسجل والتذكيرات",
@@ -108,7 +108,6 @@ class S {
       'all': "الكل",
       'save': "حفظ",
       'cancel': "إلغاء",
-      'tmdb_credit': "يستعمل التطبيق واجهة TMDB لكنه غير مدعوم أو معتمد من TMDB.",
       // ======== إضافات 2026 (Netflix-like) ========
       'profiles': "البروفايلات",
       'my_list': "قائمتي",
@@ -230,9 +229,9 @@ class S {
       'choose_language': "Choisir la langue",
       'about': "À propos",
       // 👈 تعريف التطبيق بالفرنسية
-      'about_text': "MovieFlix est votre première plateforme pour regarder les derniers films et séries en haute qualité. Il dispose d'une interface facile à utiliser, du support multilingue et d'un lecteur vidéo intégré avec reprise de lecture.\n\nDev By FaresCodeX 🍫 & My tan 🍓",
+      'about_text': "MovieFlix est votre première plateforme pour regarder les derniers films et séries en haute qualité. Il dispose d'une interface facile à utiliser, du support multilingue et d'un lecteur vidéo intégré avec reprise de lecture.\n\nBy FaresCodeX 🖋",
       'developer': "Développeur",
-      'developer_name': "FaresCodeX 🍫 & My tan 🍓",
+      'developer_name': "FaresCodeX 🖋",
       'follow_dev': "Suivez-le sur Instagram",
       'logout': "Déconnexion",
       'clear_data': "Effacer favoris, historique et rappels",
@@ -290,7 +289,6 @@ class S {
       'all': "Tout",
       'save': "Enregistrer",
       'cancel': "Annuler",
-      'tmdb_credit': "Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.",
       // ======== ajouts 2026 (style Netflix) ========
       'profiles': "Profils",
       'my_list': "Ma liste",
@@ -412,9 +410,9 @@ class S {
       'choose_language': "Choose language",
       'about': "About the app",
       // 👈 تعريف التطبيق بالإنجليزية
-      'about_text': "MovieFlix is your premier platform to watch the latest movies and series in high quality. It features an easy-to-use interface, multi-language support, and a built-in video player with resume playback.\n\nDev By FaresCodeX 🍫 & My tan 🍓",
+      'about_text': "MovieFlix is your premier platform to watch the latest movies and series in high quality. It features an easy-to-use interface, multi-language support, and a built-in video player with resume playback.\n\nBy FaresCodeX 🖋",
       'developer': "Developer",
-      'developer_name': "FaresCodeX 🍫 & My tan 🍓",
+      'developer_name': "FaresCodeX 🖋",
       'follow_dev': "Follow on Instagram",
       'logout': "Log out",
       'clear_data': "Clear favorites, history and reminders",
@@ -472,7 +470,6 @@ class S {
       'all': "All",
       'save': "Save",
       'cancel': "Cancel",
-      'tmdb_credit': "This product uses the TMDB API but is not endorsed or certified by TMDB.",
       // ======== 2026 additions (Netflix-like) ========
       'profiles': "Profiles",
       'my_list': "My List",
